@@ -29,8 +29,11 @@ import (
 func (p *Provider) ValidateStore(store esv1beta1.GenericStore) error {
 	storeSpec := store.GetSpec()
 	k8sSpec := storeSpec.Provider.Kubernetes
-	if k8sSpec.Server.CABundle == nil && k8sSpec.Server.CAProvider == nil {
-		return fmt.Errorf("a CABundle or CAProvider is required")
+
+	if k8sSpec.Auth.KubeConfig == nil {
+		if k8sSpec.Server.CABundle == nil && k8sSpec.Server.CAProvider == nil {
+			return fmt.Errorf("a CABundle or CAProvider is required")
+		}
 	}
 	if store.GetObjectKind().GroupVersionKind().Kind == esv1beta1.ClusterSecretStoreKind &&
 		k8sSpec.Server.CAProvider != nil &&

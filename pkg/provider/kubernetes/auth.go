@@ -22,6 +22,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	esv1beta1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1beta1"
 	esmeta "github.com/external-secrets/external-secrets/apis/meta/v1"
@@ -36,27 +37,37 @@ const (
 )
 
 func (c *Client) setAuth(ctx context.Context) error {
-	err := c.setCA(ctx)
-	if err != nil {
-		return err
-	}
-	if c.store.Auth.Token != nil {
-		c.BearerToken, err = c.fetchSecretKey(ctx, c.store.Auth.Token.BearerToken)
+	var err error
+	if c.store.Auth.KubeConfig != nil {
+		c.KubeConfig, err = c.getKubeconfig(ctx)
 		if err != nil {
-			return fmt.Errorf("could not fetch Auth.Token.BearerToken: %w", err)
+			return fmt.Errorf("could not fetch Kubeconfig: %w", err)
 		}
 		return nil
-	}
-	if c.store.Auth.ServiceAccount != nil {
-		c.BearerToken, err = c.serviceAccountToken(ctx, c.store.Auth.ServiceAccount)
+	} else {
+		err = c.setCA(ctx)
 		if err != nil {
-			return fmt.Errorf("could not fetch Auth.ServiceAccount: %w", err)
+			return err
 		}
-		return nil
+		if c.store.Auth.Token != nil {
+			c.BearerToken, err = c.fetchSecretKey(ctx, c.store.Auth.Token.BearerToken)
+			if err != nil {
+				return fmt.Errorf("could not fetch Auth.Token.BearerToken: %w", err)
+			}
+			return nil
+		}
+		if c.store.Auth.ServiceAccount != nil {
+			c.BearerToken, err = c.serviceAccountToken(ctx, c.store.Auth.ServiceAccount)
+			if err != nil {
+				return fmt.Errorf("could not fetch Auth.ServiceAccount: %w", err)
+			}
+			return nil
+		}
+		if c.store.Auth.Cert != nil {
+			return c.setClientCert(ctx)
+		}
 	}
-	if c.store.Auth.Cert != nil {
-		return c.setClientCert(ctx)
-	}
+
 	return fmt.Errorf("no credentials provided")
 }
 
@@ -180,4 +191,37 @@ func (c *Client) fetchConfigMapKey(ctx context.Context, key esmeta.SecretKeySele
 		return nil, fmt.Errorf(errEmptyKey, key.Key)
 	}
 	return []byte(val), nil
+}
+
+func (c *Client) getKubeconfig(ctx context.Context) ([]byte, error) {
+	secretName := c.store.Auth.KubeConfig.Name
+	var secretNamespace string
+	if c.store.Auth.KubeConfig.Namespace == nil {
+		secretNamespace = "default"
+	} else {
+		secretNamespace = *c.store.Auth.KubeConfig.Namespace
+	}
+	secret, err := c.getKubeconfigFromSecret(c.ctrlClient, secretName, secretNamespace)
+	if err != nil {
+		return nil, err
+	}
+
+	kubeConfigData, ok := secret.Data[c.store.Auth.KubeConfig.Key]
+	if !ok {
+		return nil, fmt.Errorf("kubeconfig not found in secret")
+	}
+
+	return []byte(kubeConfigData), nil
+}
+
+func (c *Client) getKubeconfigFromSecret(client kclient.Client, name, namespace string) (*corev1.Secret, error) {
+	secret := &corev1.Secret{}
+	secretKey := kclient.ObjectKey{
+		Namespace: namespace,
+		Name:      name,
+	}
+	if err := client.Get(context.TODO(), secretKey, secret); err != nil {
+		return nil, fmt.Errorf("failed to get secret: %s", err)
+	}
+	return secret, nil
 }
