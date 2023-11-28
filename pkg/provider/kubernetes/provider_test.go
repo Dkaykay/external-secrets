@@ -195,6 +195,64 @@ func TestNewClient(t *testing.T) {
 			},
 			want: true,
 		},
+		{
+			name:   "test kubeconfig",
+			fields: fields{},
+			args: args{
+				store: &esv1beta1.ClusterSecretStore{
+					TypeMeta: metav1.TypeMeta{
+						Kind: esv1beta1.ClusterSecretStoreKind,
+					},
+					Spec: esv1beta1.SecretStoreSpec{
+						Provider: &esv1beta1.SecretStoreProvider{
+							Kubernetes: &esv1beta1.KubernetesProvider{
+								Server: esv1beta1.KubernetesServer{
+									CABundle: []byte(testCertificate),
+								},
+								RemoteNamespace: "remote",
+								Auth: esv1beta1.KubernetesAuth{
+									KubeConfig: &v1.SecretKeySelector{
+										Name:      "kubeconfig-secret",
+										Namespace: pointer.To("default"),
+										Key:       "config",
+									},
+								},
+							},
+						},
+					},
+				},
+				namespace: "default",
+				clientset: clientgofake.NewSimpleClientset(),
+				kube: fclient.NewClientBuilder().WithObjects(&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "kubeconfig-secret",
+						Namespace: "default",
+					},
+					Data: map[string][]byte{
+						"config": []byte(`apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tDQpNSUlDcnpDQ0FaY0NGQjIwb1Nud29MRWt3WTRNSWJkNmhNMmltOVBvTUEwR0NTcUdTSWIzRFFFQkN3VUFNQlF4DQpFakFRQmdOVkJBTU1DV3h2WTJGc2FHOXpkREFlRncweU16RXhNamd3T1RFNE5UZGFGdzB5TXpFeU1qZ3dPVEU0DQpOVGRhTUJReEVqQVFCZ05WQkFNTUNXeHZZMkZzYUc5emREQ0NBU0l3RFFZSktvWklodmNOQVFFQkJRQURnZ0VQDQpBRENDQVFvQ2dnRUJBT0dnTzRKQmlscm5zbWNkNXdNakNYMGg5ZGY1dEI3TGh2Z0daT3d2R0w4SWxGK251QlRqDQpYM0ZRdGJJQXhPcGVwaFpTRUxUN0VIa2FMSGFsUWJxNkF1VUUvM1BhRUh4QmNnTUl2TzFIbXRFdzVwWTZCT2NuDQpXL0pjTzdHZFg2b2xtZ1VRakh1RzJiM3dxOFRIRWFVblduODY0NzFXMHhCZDdSZDdEOSswK3BpZUpwcmxnT0MxDQpqdHZsMkh1bTM4bVBneHh1SFhzbWdWVmEvNDhTWGNvT2ZESUpwV01DbFNUcWFFNVhBRGFRRXRxQ0ZiUmIzZ29lDQprbUEvL2l6eHpCRm5lL21mbk5BYlAwd2hUOXc0ejNXSExVMkdTc3o4bXQ4OTlWMGZ3TkRuZzBTM0FQclptSW4wDQpNVkF2bkM1Rm9hb0VQYVl0VkpQYXZJWXFaRXd2eU4zZmg2Y0NBd0VBQVRBTkJna3Foa2lHOXcwQkFRc0ZBQU9DDQpBUUVBVGVwekVhOERqQUl0Z1V0VU54anN5VFY5d0VqMUZTYk1mVjU0L2J4bXJtTkl0ZjFBYzBkTlluZVgzQ3ZoDQpXYU1SaUdCdEJMeW9UMTUvN2MvR0tBRS9DNmlXS1RjMTlpcnpXcm9MZVBZakZtSTRFUlRZWHR0eW9ia0p4OG9IDQpMMWtmTlFTYUpaZ2hNemd5cWFCWVgxRmhVZ0U5eVpsbVJFeUlXOXVEMUZxZWE3Y29MdXJLWkxiWHpWR2dZcmFhDQp3YXZVWHh6TGRoTW5hZGhNa2hKbnVmeFRURkZXaXo5eHovcnFjNERmbU9RSGlSTnI2bnQ1Z2J4dXRwY2srMCtNDQpTZEdFcDNvUmphbVdIdndzNnkyVUVKN1lvV1hmUHJQRmNYeWlERFY2bkhsNUg0elhpRDlBVW0xU3lqeFJjNmFtDQozVFRRR1gzZDlXekJYU2lrVVBhZk5EcjBzdz09DQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t
+    server: https://localhost:8080
+  name: dummyName
+contexts:
+- context:
+    cluster: dummyName
+    user: dummyUser
+  name: dummyContext
+current-context: dummyContext
+kind: Config
+preferences: {}
+users:
+- name: dummyUser
+  user:
+    token: dummyToken
+`),
+					},
+				}).Build(),
+			},
+			want: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
