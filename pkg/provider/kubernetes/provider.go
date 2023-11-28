@@ -143,6 +143,12 @@ func (p *Provider) newClient(ctx context.Context, store esv1beta1.GenericStore, 
 			return nil, fmt.Errorf("failed to get config: %v", err)
 		}
 		userClientset, err = kubernetes.NewForConfig(restCfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create clientset for given config: %v", err)
+		}
+		if userClientset == nil {
+			return nil, fmt.Errorf("userClientset was not initialized properly")
+		}
 	} else {
 		config := &rest.Config{
 			Host:        client.store.Server.URL,
