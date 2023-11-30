@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlcfg "sigs.k8s.io/controller-runtime/pkg/client/config"
 
@@ -78,6 +79,7 @@ type Client struct {
 	Key         []byte
 	CA          []byte
 	BearerToken []byte
+	KubeConfig  []byte
 }
 
 func init() {
@@ -127,23 +129,46 @@ func (p *Provider) newClient(ctx context.Context, store esv1beta1.GenericStore, 
 		return nil, err
 	}
 
-	config := &rest.Config{
-		Host:        client.store.Server.URL,
-		BearerToken: string(client.BearerToken),
-		TLSClientConfig: rest.TLSClientConfig{
-			Insecure: false,
-			CertData: client.Certificate,
-			KeyData:  client.Key,
-			CAData:   client.CA,
-		},
+	var userClientset *kubernetes.Clientset
+	var err error
+
+	if client.KubeConfig != nil {
+		config, err := clientcmd.NewClientConfigFromBytes(client.KubeConfig)
+		if err != nil {
+			return nil, err
+		}
+
+		restCfg, err := config.ClientConfig()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get config: %v", err)
+		}
+		userClientset, err = kubernetes.NewForConfig(restCfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create clientset for given config: %v", err)
+		}
+		if userClientset == nil {
+			return nil, fmt.Errorf("userClientset was not initialized properly")
+		}
+	} else {
+		config := &rest.Config{
+			Host:        client.store.Server.URL,
+			BearerToken: string(client.BearerToken),
+			TLSClientConfig: rest.TLSClientConfig{
+				Insecure: false,
+				CertData: client.Certificate,
+				KeyData:  client.Key,
+				CAData:   client.CA,
+			},
+		}
+		userClientset, err = kubernetes.NewForConfig(config)
 	}
 
-	userClientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("error configuring clientset: %w", err)
 	}
 	client.userSecretClient = userClientset.CoreV1().Secrets(client.store.RemoteNamespace)
 	client.userReviewClient = userClientset.AuthorizationV1().SelfSubjectRulesReviews()
+
 	return client, nil
 }
 

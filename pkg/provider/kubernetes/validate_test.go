@@ -241,6 +241,26 @@ func TestValidateStore(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "valid auth kubeconfig",
+			store: &esv1beta1.SecretStore{
+				Spec: esv1beta1.SecretStoreSpec{
+					Provider: &esv1beta1.SecretStoreProvider{
+						Kubernetes: &esv1beta1.KubernetesProvider{
+							Server: esv1beta1.KubernetesServer{},
+							Auth: esv1beta1.KubernetesAuth{
+								KubeConfig: &v1.SecretKeySelector{
+									Name:      "foobar",
+									Namespace: pointer.To("default"),
+									Key:       "my_kubeconfig",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

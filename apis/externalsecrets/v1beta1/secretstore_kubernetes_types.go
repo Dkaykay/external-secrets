@@ -37,6 +37,7 @@ type KubernetesServer struct {
 // Configures a store to sync secrets with a Kubernetes instance.
 type KubernetesProvider struct {
 	// configures the Kubernetes server Address.
+	// +optional
 	Server KubernetesServer `json:"server,omitempty"`
 
 	// Auth configures how secret-manager authenticates with a Kubernetes instance.
@@ -62,6 +63,10 @@ type KubernetesAuth struct {
 	// points to a service account that should be used for authentication
 	// +optional
 	ServiceAccount *esmeta.ServiceAccountSelector `json:"serviceAccount,omitempty"`
+
+	// points to a secret containing kubeconfig that should be used for authentication
+	// +optional
+	KubeConfig *esmeta.SecretKeySelector `json:"kubeconfig"`
 }
 
 type CertAuth struct {

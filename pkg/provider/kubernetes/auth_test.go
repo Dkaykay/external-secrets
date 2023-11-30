@@ -43,6 +43,7 @@ func TestSetAuth(t *testing.T) {
 		Key         []byte
 		CA          []byte
 		BearerToken []byte
+		KubeConfig  []byte
 	}
 	tests := []struct {
 		name    string
@@ -232,6 +233,38 @@ func TestSetAuth(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "should fetch kubeconfig from Secret",
+			fields: fields{
+				namespace: "default",
+				kube: fclient.NewClientBuilder().WithObjects(&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "foobar",
+						Namespace: "default",
+					},
+					Data: map[string][]byte{
+						"my_kubeconfig": []byte("my-kubeconfig-value"),
+					},
+				}).Build(),
+				//kubeclientset: utilfake.NewCreateTokenMock().WithToken("my-sa-token"),
+				store: &esv1beta1.KubernetesProvider{
+					Server: esv1beta1.KubernetesServer{
+						CABundle: []byte("1234"),
+					},
+					Auth: esv1beta1.KubernetesAuth{
+						KubeConfig: &v1.SecretKeySelector{
+							Name:      "foobar",
+							Namespace: pointer.To("default"),
+							Key:       "my_kubeconfig",
+						},
+					},
+				},
+			},
+			want: want{
+				KubeConfig: []byte("my-kubeconfig-value"),
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -250,6 +283,7 @@ func TestSetAuth(t *testing.T) {
 				Key:         k.Key,
 				CA:          k.CA,
 				BearerToken: k.BearerToken,
+				KubeConfig:  k.KubeConfig,
 			}
 			if !cmp.Equal(w, tt.want) {
 				t.Errorf("unexpected value: expected %#v, got %#v", tt.want, w)
